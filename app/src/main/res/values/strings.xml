@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">DroidIsland</string>
+    <string name="service_desc">Рисует Dynamic Island поверх экрана вокруг камеры.</string>
+</resources>
