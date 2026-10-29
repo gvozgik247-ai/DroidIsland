@@ -142,11 +142,6 @@ class IslandService : AccessibilityService() {
 
         extPx = 46 * resources.displayMetrics.density
         loadCfg(); loadColors()
-        root.setOnApplyWindowInsetsListener { _, ins ->
-            statusVisible = ins.isVisible(WindowInsets.Type.statusBars())
-            updateVisibility()
-            ins
-        }
         view.onToggle = { setExpanded(!expanded) }
         view.onLong = { if (longTorch) toggleTorch() }
         view.onAction = { a, f -> act(a, f) }
@@ -155,6 +150,7 @@ class IslandService : AccessibilityService() {
         initTorch()
         refreshInfo(); loadBg(); apply()
         wm.addView(root, lp)
+        updateVisibility()
         Prefs.sp(this).registerOnSharedPreferenceChangeListener(prefListener)
         ContextCompat.registerReceiver(this, tick,
             IntentFilter().apply {
@@ -241,7 +237,7 @@ class IslandService : AccessibilityService() {
 
     private fun updateVisibility() {
         val land = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-        root.visibility = if (hideFs && (land || !statusVisible)) View.INVISIBLE else View.VISIBLE
+        root.visibility = if (hideFs && land) View.INVISIBLE else View.VISIBLE
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {

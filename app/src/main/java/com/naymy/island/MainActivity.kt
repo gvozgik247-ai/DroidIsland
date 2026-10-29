@@ -361,13 +361,13 @@ class MainActivity : Activity() {
         a.addView(label("Пружинная физика: остров слегка «перелетает» размер и оседает. Меньше упругость — больше инерции.", 12f, cSub))
         slider(a, "stiff"); slider(a, "damp"); slider(a, "collapse")
         val b = card("Поведение")
-        switchRow(b, "Прятать в полноэкранных приложениях и в альбомной ориентации", "hideFs", true)
+        switchRow(b, "Прятать в альбомной ориентации (видео, игры)", "hideFs", true)
         switchRow(b, "Вибро-отклик на кнопках", "haptic", true)
         switchRow(b, "Фонарик по долгому нажатию", "longTorch", true)
         val r = card(null)
         r.addView(button("Сбросить все настройки", false) { Prefs.reset(this); prevBmp = null; showPage(3) })
         val ab = card("О приложении")
-        ab.addView(label("DroidIsland v5\nDynamic Island для Android. Сделано для Pixel 6.", 13f, cSub))
+        ab.addView(label("DroidIsland v5.1\nDynamic Island для Android. Сделано для Pixel 6.", 13f, cSub))
     }
 
     // ---------- импорт фона ----------
