@@ -21,6 +21,7 @@ object Prefs {
         Item("dim", "Затемнение фото/видео", 0, 80, 35, "%"),
         Item("stiff", "Скорость анимации", 100, 1000, 350, ""),
         Item("damp", "Упругость (меньше = больше инерции)", 30, 100, 62, "%"),
+        Item("collapse", "Автосворачивание", 2, 15, 6, "с"),
     )
 
     val colors = listOf(
@@ -33,6 +34,7 @@ object Prefs {
     fun sp(c: Context): SharedPreferences = c.getSharedPreferences("island", Context.MODE_PRIVATE)
     fun get(c: Context, key: String): Int = sp(c).getInt(key, items.first { it.key == key }.def)
     fun color(c: Context, key: String): Int = sp(c).getInt(key, colors.first { it.key == key }.def)
+    fun bool(c: Context, key: String, def: Boolean): Boolean = sp(c).getBoolean(key, def)
     fun str(c: Context, key: String, def: String): String = sp(c).getString(key, def) ?: def
     fun ver(c: Context): Long = sp(c).getLong("bgver", 0L)
     fun reset(c: Context) = sp(c).edit().clear().apply()

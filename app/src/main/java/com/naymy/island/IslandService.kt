@@ -51,6 +51,10 @@ class IslandService : AccessibilityService() {
     private var cEw = 0f; private var cEh = 0f; private var cEr = 0f
     private var stiff = 350f; private var damp = 0.62f; private var dimv = 0.35f
     private var extPx = 0f
+    private var collapseMs = 6000L
+    private var hideFs = true
+    private var haptic = true
+    private var longTorch = true
 
     private val handler = Handler(Looper.getMainLooper())
     private val collapseLater = Runnable { setExpanded(false) }
@@ -73,6 +77,7 @@ class IslandService : AccessibilityService() {
 
     private val prefListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
         loadCfg(); loadColors()
+        if (::root.isInitialized) updateVisibility()
         if (Prefs.ver(this) != lastBgVer) loadBg()
         apply()
     }
@@ -113,6 +118,15 @@ class IslandService : AccessibilityService() {
     }
 
     override fun onServiceConnected() {
+        val crash = File(filesDir, "crash.txt")
+        if (crash.exists()) { disableSelf(); return }
+        try { setup() } catch (e: Throwable) {
+            try { crash.writeText("service setup:\n" + android.util.Log.getStackTraceString(e)) } catch (_: Exception) {}
+            try { disableSelf() } catch (_: Exception) {}
+        }
+    }
+
+    private fun setup() {
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
         root = IslandRoot(this)
         lp = WindowManager.LayoutParams(
@@ -121,6 +135,7 @@ class IslandService : AccessibilityService() {
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
                 WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
             PixelFormat.TRANSLUCENT
         ).apply { gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL }
@@ -133,8 +148,8 @@ class IslandService : AccessibilityService() {
             ins
         }
         view.onToggle = { setExpanded(!expanded) }
-        view.onLong = { toggleTorch() }
-        view.onAction = { act(it) }
+        view.onLong = { if (longTorch) toggleTorch() }
+        view.onAction = { a, f -> act(a, f) }
         State.onChange = { syncExt(); view.invalidate() }
 
         initTorch()
@@ -161,6 +176,10 @@ class IslandService : AccessibilityService() {
         stiff = Prefs.get(this, "stiff").toFloat()
         damp = Prefs.get(this, "damp") / 100f
         dimv = Prefs.get(this, "dim") / 100f
+        collapseMs = Prefs.get(this, "collapse") * 1000L
+        hideFs = Prefs.bool(this, "hideFs", true)
+        haptic = Prefs.bool(this, "haptic", true)
+        longTorch = Prefs.bool(this, "longTorch", true)
     }
 
     private fun loadColors() {
@@ -222,7 +241,7 @@ class IslandService : AccessibilityService() {
 
     private fun updateVisibility() {
         val land = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-        root.visibility = if (land || !statusVisible) View.INVISIBLE else View.VISIBLE
+        root.visibility = if (hideFs && (land || !statusVisible)) View.INVISIBLE else View.VISIBLE
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -230,15 +249,22 @@ class IslandService : AccessibilityService() {
         if (::root.isInitialized) updateVisibility()
     }
 
-    private fun act(a: String) {
-        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+    private fun act(a: String, f: Float) {
+        if (haptic) view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
         handler.removeCallbacks(collapseLater)
-        handler.postDelayed(collapseLater, 6000)
+        handler.postDelayed(collapseLater, collapseMs)
         val tc = State.controller?.transportControls
         when (a) {
             "play" -> if (State.playing) tc?.pause() else tc?.play()
             "next" -> tc?.skipToNext()
             "prev" -> tc?.skipToPrevious()
+            "seek" -> if (State.durMs > 0) {
+                val t = (f * State.durMs).toLong()
+                tc?.seekTo(t)
+                State.posMs = t
+                State.posStamp = SystemClock.elapsedRealtime()
+                State.notifyChange()
+            }
             "torch" -> toggleTorch()
             "tstop" -> { State.timerEnd = 0L; State.notifyChange() }
         }
@@ -268,7 +294,7 @@ class IslandService : AccessibilityService() {
     private fun setExpanded(e: Boolean) {
         expanded = e
         handler.removeCallbacks(collapseLater)
-        if (e) { refreshInfo(); handler.postDelayed(collapseLater, 6000) }
+        if (e) { refreshInfo(); handler.postDelayed(collapseLater, collapseMs) }
         springP(if (e) 1f else 0f)
     }
 

@@ -29,7 +29,7 @@ class IslandView(ctx: Context) : View(ctx) {
 
     var onToggle: (() -> Unit)? = null
     var onLong: (() -> Unit)? = null
-    var onAction: ((String) -> Unit)? = null
+    var onAction: ((String, Float) -> Unit)? = null
 
     private val d = ctx.resources.displayMetrics.density
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -46,8 +46,9 @@ class IslandView(ctx: Context) : View(ctx) {
     private val gd = GestureDetector(ctx, object : GestureDetector.SimpleOnGestureListener() {
         override fun onDown(e: MotionEvent): Boolean = true
         override fun onSingleTapUp(e: MotionEvent): Boolean {
-            val a = if (progress > 0.9f) hits.firstOrNull { it.first.contains(e.x, e.y) }?.second else null
-            if (a != null) onAction?.invoke(a) else onToggle?.invoke()
+            val h = if (progress > 0.9f) hits.firstOrNull { it.first.contains(e.x, e.y) } else null
+            if (h != null) onAction?.invoke(h.second, ((e.x - h.first.left) / h.first.width()).coerceIn(0f, 1f))
+            else onToggle?.invoke()
             return true
         }
         override fun onLongPress(e: MotionEvent) { onLong?.invoke() }
@@ -77,7 +78,7 @@ class IslandView(ctx: Context) : View(ctx) {
         return "%d:%02d".format(s / 60, s % 60)
     }
 
-    private fun cardH(a: String) = dp(if (a == "music") 128f else 58f)
+    private fun cardH(a: String) = dp(if (a == "music") 172f else 58f)
 
     fun contentHeight(acts: List<String>): Float {
         var h = headH + dp(6f)
@@ -195,68 +196,81 @@ class IslandView(ctx: Context) : View(ctx) {
         }
     }
 
+    private fun clock(ms: Long): String {
+        val s = ms / 1000
+        return "%d:%02d".format(s / 60, s % 60)
+    }
+
     private fun drawMusic(c: Canvas, r: RectF, a: Float) {
-        val ax = r.left + dp(12f); val ay = r.top + dp(12f); val sz = dp(56f)
+        val ax = r.left + dp(14f); val ay = r.top + dp(14f); val sz = dp(68f)
         rect.set(ax, ay, ax + sz, ay + sz)
         val art = State.art
         if (art != null) {
             c.save()
-            path.reset(); path.addRoundRect(rect, dp(12f), dp(12f), Path.Direction.CW)
+            path.reset(); path.addRoundRect(rect, dp(14f), dp(14f), Path.Direction.CW)
             c.clipPath(path)
             fill.color = Color.WHITE; fill.alpha = (255 * a).toInt()
             c.drawBitmap(art, null, rect, fill)
             c.restore()
         } else {
             fill.color = col(0xFF3A3A3C.toInt(), a)
-            c.drawRoundRect(rect, dp(12f), dp(12f), fill)
-            text(c, "♪", ax + sz / 2f, ay + sz / 2f + dp(9f), 26f, textColor, a, false, Paint.Align.CENTER)
+            c.drawRoundRect(rect, dp(14f), dp(14f), fill)
+            text(c, "♪", ax + sz / 2f, ay + sz / 2f + dp(10f), 30f, textColor, a, false, Paint.Align.CENTER)
         }
-        val tx = ax + sz + dp(12f)
-        val avail = r.right - dp(14f) - tx
-        text(c, fit(State.title, 15f, avail), tx, r.top + dp(32f), 15f, textColor, a, true)
-        text(c, fit(State.artist, 13f, avail), tx, r.top + dp(52f), 13f, sec, a)
-        val bl = r.left + dp(16f); val br = r.right - dp(16f); val by = r.top + dp(80f)
-        rect.set(bl, by - dp(2f), br, by + dp(2f))
+        val tx = ax + sz + dp(14f)
+        val avail = r.right - dp(48f) - tx
+        text(c, fit(State.title, 16f, avail), tx, r.top + dp(38f), 16f, textColor, a, true)
+        text(c, fit(State.artist, 13f, avail), tx, r.top + dp(60f), 13f, sec, a)
+        if (State.playing) eq(c, r.right - dp(26f), r.top + dp(32f), a)
+
+        val bl = r.left + dp(18f); val br = r.right - dp(18f); val by = r.top + dp(108f)
+        rect.set(bl, by - dp(2.5f), br, by + dp(2.5f))
         fill.color = col(textColor, 0.2f * a)
-        c.drawRoundRect(rect, dp(2f), dp(2f), fill)
-        if (State.durMs > 0) {
-            val f = (State.curPos().toFloat() / State.durMs).coerceIn(0f, 1f)
-            rect.set(bl, by - dp(2f), bl + (br - bl) * f, by + dp(2f))
-            fill.color = col(accent, a)
-            c.drawRoundRect(rect, dp(2f), dp(2f), fill)
-        }
-        val cy = r.top + dp(106f); val cx = r.centerX()
-        icon(c, "prev", cx - dp(64f), cy, a)
-        icon(c, if (State.playing) "pause" else "play", cx, cy, a)
-        icon(c, "next", cx + dp(64f), cy, a)
+        c.drawRoundRect(rect, dp(3f), dp(3f), fill)
+        val f = if (State.durMs > 0) (State.curPos().toFloat() / State.durMs).coerceIn(0f, 1f) else 0f
+        rect.set(bl, by - dp(2.5f), bl + (br - bl) * f, by + dp(2.5f))
+        fill.color = col(accent, a)
+        c.drawRoundRect(rect, dp(3f), dp(3f), fill)
+        fill.color = col(textColor, a)
+        c.drawCircle(bl + (br - bl) * f, by, dp(5.5f), fill)
+        text(c, clock(State.curPos()), bl, by + dp(22f), 11f, sec, a)
+        if (State.durMs > 0) text(c, clock(State.durMs), br, by + dp(22f), 11f, sec, a, false, Paint.Align.RIGHT)
+
+        val cy = r.top + dp(143f); val cx = r.centerX()
+        icon(c, "prev", cx - dp(78f), cy, textColor, a)
+        icon(c, "next", cx + dp(78f), cy, textColor, a)
+        fill.color = col(textColor, a)
+        c.drawCircle(cx, cy, dp(22f), fill)
+        icon(c, if (State.playing) "pause" else "play", cx, cy, cardColor, a)
         if (progress > 0.9f) {
-            rect.set(cx - dp(90f), cy - dp(20f), cx - dp(38f), cy + dp(20f)); addHit(rect, "prev")
-            rect.set(cx - dp(32f), cy - dp(20f), cx + dp(32f), cy + dp(20f)); addHit(rect, "play")
-            rect.set(cx + dp(38f), cy - dp(20f), cx + dp(90f), cy + dp(20f)); addHit(rect, "next")
+            rect.set(bl, by - dp(16f), br, by + dp(16f)); addHit(rect, "seek")
+            rect.set(cx - dp(104f), cy - dp(24f), cx - dp(52f), cy + dp(24f)); addHit(rect, "prev")
+            rect.set(cx - dp(30f), cy - dp(26f), cx + dp(30f), cy + dp(26f)); addHit(rect, "play")
+            rect.set(cx + dp(52f), cy - dp(24f), cx + dp(104f), cy + dp(24f)); addHit(rect, "next")
         }
     }
 
-    private fun icon(c: Canvas, kind: String, cx: Float, cy: Float, a: Float) {
-        fill.color = col(textColor, a)
+    private fun icon(c: Canvas, kind: String, cx: Float, cy: Float, color: Int, a: Float) {
+        fill.color = col(color, a)
         path.reset()
         when (kind) {
             "play" -> {
-                path.moveTo(cx - dp(7f), cy - dp(10f)); path.lineTo(cx - dp(7f), cy + dp(10f))
+                path.moveTo(cx - dp(6f), cy - dp(10f)); path.lineTo(cx - dp(6f), cy + dp(10f))
                 path.lineTo(cx + dp(10f), cy); path.close(); c.drawPath(path, fill)
             }
             "pause" -> {
-                rect.set(cx - dp(8f), cy - dp(10f), cx - dp(2.5f), cy + dp(10f)); c.drawRoundRect(rect, dp(1.5f), dp(1.5f), fill)
-                rect.set(cx + dp(2.5f), cy - dp(10f), cx + dp(8f), cy + dp(10f)); c.drawRoundRect(rect, dp(1.5f), dp(1.5f), fill)
+                rect.set(cx - dp(7f), cy - dp(9f), cx - dp(2.5f), cy + dp(9f)); c.drawRoundRect(rect, dp(1.5f), dp(1.5f), fill)
+                rect.set(cx + dp(2.5f), cy - dp(9f), cx + dp(7f), cy + dp(9f)); c.drawRoundRect(rect, dp(1.5f), dp(1.5f), fill)
             }
             "next" -> {
-                path.moveTo(cx - dp(9f), cy - dp(8f)); path.lineTo(cx - dp(9f), cy + dp(8f))
+                path.moveTo(cx - dp(10f), cy - dp(9f)); path.lineTo(cx - dp(10f), cy + dp(9f))
                 path.lineTo(cx + dp(3f), cy); path.close(); c.drawPath(path, fill)
-                rect.set(cx + dp(5f), cy - dp(8f), cx + dp(8f), cy + dp(8f)); c.drawRect(rect, fill)
+                rect.set(cx + dp(5f), cy - dp(9f), cx + dp(8.5f), cy + dp(9f)); c.drawRoundRect(rect, dp(1f), dp(1f), fill)
             }
             "prev" -> {
-                path.moveTo(cx + dp(9f), cy - dp(8f)); path.lineTo(cx + dp(9f), cy + dp(8f))
+                path.moveTo(cx + dp(10f), cy - dp(9f)); path.lineTo(cx + dp(10f), cy + dp(9f))
                 path.lineTo(cx - dp(3f), cy); path.close(); c.drawPath(path, fill)
-                rect.set(cx - dp(8f), cy - dp(8f), cx - dp(5f), cy + dp(8f)); c.drawRect(rect, fill)
+                rect.set(cx - dp(8.5f), cy - dp(9f), cx - dp(5f), cy + dp(9f)); c.drawRoundRect(rect, dp(1f), dp(1f), fill)
             }
         }
     }

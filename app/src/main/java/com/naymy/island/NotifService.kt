@@ -56,6 +56,10 @@ class NotifService : NotificationListenerService() {
     }
 
     private fun readController() {
+        try { readControllerInner() } catch (_: Exception) {}
+    }
+
+    private fun readControllerInner() {
         val c = ctrl
         if (c == null) {
             State.hasMusic = false
